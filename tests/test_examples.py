@@ -22,7 +22,7 @@ class ExamplesTest(unittest.TestCase):
                     if task == "classification":
                         self.assertGreater(metrics["accuracy"], 0.8)
                         self.assertGreater(metrics["accuracy"], metrics["baseline_accuracy"])
-                    elif task == "regression":
+                    elif task in ("regression", "nonlinear_regression"):
                         self.assertGreater(metrics["r2"], 0.2)
                         self.assertLess(metrics["rmse"], metrics["baseline_rmse"])
                     else:
@@ -58,6 +58,28 @@ class ExamplesTest(unittest.TestCase):
                     path.write_text(content, encoding="utf-8")
                     with self.assertRaises(ValueError):
                         read_features(path, ["a", "b"])
+
+    def test_nonlinear_models_and_preprocessing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            metrics = train("nonlinear_regression", directory)
+            with (directory / "dataset.csv").open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            training_x = np.array([[float(row["x"])] for row in rows if row["split"] == "train"])
+            self.assertEqual(len(training_x), 320)
+            for name in ("polynomial_ridge", "rbf_svr", "random_forest"):
+                with self.subTest(model=name):
+                    self.assertGreater(metrics["models"][name]["test_r2"], 0.9)
+                    self.assertLess(metrics["models"][name]["test_rmse"], metrics["baseline_rmse"] / 2)
+                    bundle = joblib.load(directory / f"{name}.joblib")
+                    values = predict(directory / f"{name}.joblib", directory / "sample_features.csv",
+                                     directory / f"{name}.csv")
+                    self.assertTrue(np.isfinite(values).all())
+                    if name == "rbf_svr":
+                        # 保存的标准化统计量应来自训练集，而非全部 400 条数据。
+                        np.testing.assert_allclose(
+                            bundle["model"].named_steps["standardscaler"].mean_, training_x.mean(axis=0),
+                        )
 
     def test_reproducibility(self):
         with tempfile.TemporaryDirectory() as temp:

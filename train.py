@@ -1,4 +1,4 @@
-"""可离线运行的分类、回归和聚类入门实验。"""
+"""可离线运行的分类、线性/非线性回归和聚类入门实验。"""
 
 import argparse
 import csv
@@ -27,13 +27,17 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-TASKS = ("classification", "regression", "clustering")
+TASKS = ("classification", "regression", "clustering", "nonlinear_regression")
 
 
 def train(task, output_dir, seed=42):
     """训练模型并保存完整 Pipeline、指标和可用于预测的示例 CSV。"""
     if task not in TASKS:
         raise ValueError(f"Unknown task: {task}")
+    if task == "nonlinear_regression":
+        from nonlinear_regression import train_nonlinear
+
+        return train_nonlinear(output_dir, seed)
 
     target_names = None
     if task == "classification":
@@ -138,12 +142,12 @@ def train(task, output_dir, seed=42):
     return metrics
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", choices=(*TASKS, "all"), default="all")
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts"))
     parser.add_argument("--seed", type=int, default=42)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not 0 <= args.seed < 2**32:
         parser.error("--seed must be between 0 and 4294967295")
     tasks = TASKS if args.task == "all" else (args.task,)
